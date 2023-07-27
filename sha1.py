@@ -1,37 +1,5 @@
-#     Preprocessing: Take the input message and perform some preprocessing steps. These include padding the message to a fixed length, appending the message length, and breaking the message into fixed-size blocks.
-
-#     Initialize Variables: Define the initial hash values (H0 - H4) for SHA-1. These values are predetermined constants.
-
-#     Main Loop: Process each block of the message in a loop. For each block, perform a series of logical and bitwise operations to update the hash values.
-
-#     Hash Computation: Within each loop iteration, perform multiple rounds of operations. These rounds involve bitwise logical operations such as AND, OR, XOR, and logical functions such as NOT.
-
-#     Finalize: After processing all the blocks, concatenate the final hash values together to get the resulting hash digest.
-
-# To implement SHA-1 in Python, you can follow these steps:
-
-#     Start by importing the required modules in your Python script. You may use the struct module for bit manipulation and binascii module for hex conversions.
-
-#     Define the initial hash values (H0 - H4) as constants.
-
-#     Implement the preprocessing steps, such as padding the input message to a fixed length and appending the message length. You may need to use bitwise operations and byte manipulation functions to perform these operations.
-
-#     Write a function to process each block of the message. This function will include the main loop and the hash computation steps.
-
-#     Implement the bitwise logical and arithmetic operations required by the SHA-1 algorithm. Make sure to use bitwise operators (&, |, ^, <<, >>) and logical functions (and, or, not) correctly.
-
-#     Perform the necessary rounds of operations within the main loop to update the hash values.
-
-#     Once all blocks have been processed, concatenate the final hash values to obtain the resulting hash digest.
-
-
-
-import struct
-import binascii
-
 
 class SHA1:
-
 
     H = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0]
     K = [0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6]
@@ -39,9 +7,11 @@ class SHA1:
     def __init__(self, message:bytes):
         self.message = message
         self.length = len(self.message) * 8 #msg length in bits
+        self.preprocessing()
+        self.main_loop()
 
 
-    def padding(self):
+    def _padding(self):
         """Pad the message until it is a length congruent to 448 mod 512"""
         self.message += int(128).to_bytes(1, 'big') # b'\x80'
         while (len(self.message) * 8) % 512 != 448:
@@ -49,7 +19,7 @@ class SHA1:
         return
 
 
-    def append_length(self):
+    def _append_length(self):
         """Appends the orginal length of the message as a 64bit integer.
         This is done to ensure that any change to the message's length will result
         in a different hash value.
@@ -57,12 +27,10 @@ class SHA1:
         """
         self.len64 = self.length.to_bytes((self.length.bit_length() + 7) // 8, byteorder='big').rjust(8, b'\x00')
         self.message += self.len64
-        self.message += self.message
-        # self.message += self.message
         return
 
 
-    def create_message_blocks(self):
+    def _create_message_blocks(self):
         """Chop the message into blocks of 512 bits. Check to make sure the length 
         of the final block is 512 bits. If its less than you have to perform SHA's
         funky little padding scheme: 
@@ -82,66 +50,60 @@ class SHA1:
         return
 
 
-    # def main_loop(self):
-
-    #     for block in self.blocks:
-    #         for i in range(0, 80):
-
-
-
-    # def process_block(self, block:bytes):
+    def preprocessing(self):
+        self._padding()
+        self._append_length()
+        self._create_message_blocks()
+        return
 
 
+    def _left_rotate(self, n:int, d:int):
+        return ((n << d) | (n >> (32 - d))) & 0xFFFFFFFF
 
 
+    def main_loop(self):
 
-    # def update(self, message:bytes) -> bytes:
-    #     """
-    #     This method should save the message, or if some text
-    #     has already been added, just concatenate the incoming message
-    #     to the saved message string.
-    #     """
-    #     msg_len = len(message) * 8
-    #     message += int(128).to_bytes(1, 'big') # b'\x80'
-        
-    #     while (len(message) * 8) % 512 != 448:
-    #         message += b'\x00'
-    #     message += msg_len.to_bytes(8, 'big')
-    #     return message
+        for block in self.blocks:
+            # Prepare the 16-word message schedule for this block
+            W = [0] * 80
+            for t in range(0, 16):
+                W[t] = int().from_bytes(block[t * 4: (t + 1) * 4], 'big')
 
+        for t in range(16, 80):
+            W[t] = self._left_rotate(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1)
 
-    # def digest(self) -> str:
-    #     """
-    #     This method should implement the SHA1 algorithm
-    #     and output a 40 character string of hex letters.
-    #     You may want to create other methods that will carry
-    #     out the different parts of the algorithm and call
-    #     them here.
-    #     """
-    #     pass
+        a, b, c, d, e = self.H
+        # Main loop iterations
+        for t in range(80):
+            if 0 <= t <= 19:
+                f = (b & c) | ((~b) & d)
+                k = self.K[0]
+            elif 20 <= t <= 39:
+                f = b ^ c ^ d
+                k = self.K[1]
+            elif 40 <= t <= 59:
+                f = (b & c) | (b & d) | (c & d)
+                k = self.K[2]
+            else:
+                f = b ^ c ^ d
+                k = self.K[3]
 
+            temp = self._left_rotate(a, 5) + f + e + k + W[t]
+            e, d, c, b, a = d, c, self._left_rotate(b, 30), a, temp & 0xFFFFFFFF
 
+        # Update the intermediate hash values
+        self.H[0] = (self.H[0] + a) & 0xFFFFFFFF
+        self.H[1] = (self.H[1] + b) & 0xFFFFFFFF
+        self.H[2] = (self.H[2] + c) & 0xFFFFFFFF
+        self.H[3] = (self.H[3] + d) & 0xFFFFFFFF
+        self.H[4] = (self.H[4] + e) & 0xFFFFFFFF
 
+        return
+    
 
-sha = SHA1(b'themessage')
-sha.padding()
-sha.append_length()
-sha.create_message_blocks()
-# print(sha.message)
-
-# def sha1_padding(message):
-#     ml = len(message) * 8  # Message length in bits
-#     message += b'\x80'  # Append a single '1' bit (byte with value 128)
-
-#     while (len(message) * 8) % 512 != 448:
-#         message += b'\x00'  # Append '0' bits until the length is congruent to 448 mod 512
-
-#     # Append the 64-bit big-endian representation of the original message length
-#     message += ml.to_bytes(8, 'big')
-
-#     return message
-
-# # Example usage:
-# original_message = b'Hello, world!'
-# padded_message = sha1_padding(original_message)
-# print(padded_message)
+    def sha1_hash(self, format:str='hex') -> str:
+        """Format can be 'bytes' or 'hex'."""
+        if format == 'bytes':    
+            return b''.join(val.to_bytes(4, 'big') for val in self.H)
+        else:
+            return b''.join(val.to_bytes(4, 'big') for val in self.H).hex()
