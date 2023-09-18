@@ -50,15 +50,15 @@ class SHA1:
         return
 
 
+    def _left_rotate(self, n:int, d:int):
+        return ((n << d) | (n >> (32 - d))) & 0xFFFFFFFF
+    
+
     def preprocessing(self):
         self._padding()
         self._append_length()
         self._create_message_blocks()
         return
-
-
-    def _left_rotate(self, n:int, d:int):
-        return ((n << d) | (n >> (32 - d))) & 0xFFFFFFFF
 
 
     def main_loop(self):
